@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+
+<h1> Game experiments</h1>
+<canvas id="gc" width="400" height="800"></canvas>
+<script>
+    const SCREEN_WIDTH = 400;
+    const SCREEN_HEIGHT = 800;
+    const SCREEN_MIDDLE = Math.floor(SCREEN_WIDTH/2);
+    const BLOCK_SIZE = Math.floor(SCREEN_WIDTH / 10);
+    
+    var ctx = undefined;
+    var canvas = undefined;
+
+    window.onload=function() {
+        canvas = document.getElementById("gc");
+        ctx = canvas.getContext("2d");
+        blockSize = Math.floor(canvas.width/gridWidth);
+        gridHeight = Math.floor(canvas.height/blockSize);
+        grid = new Array(gridHeight);
+        // create and initialise the array to keep track of static blocks
+        for (i=0; i<gridHeight; i++) {
+            grid[i] = new Array(gridWidth);
+        }
+        for (row=0; row<gridHeight; row++) {
+            for (col=0; col<gridWidth; col++) {
+                grid[row][col] = "black";
+            }
+        }
+        fallSpeed = .1;
+        console.log("Starting...");
+        console.log(grid);
+        document.addEventListener("keydown", keyPush);
+        setInterval(game, 1000/30);
+    }
+
+    console.log("outside function: test="+test);
+
+    function game() {
+//        console.log(px*blockSize, py*blockSize, blockSize, blockSize);
+
+        py += fallSpeed;
+        if (py>gridHeight-1 || grid[Math.ceil(py)][px] != "black") {
+            grid[Math.floor(py)][px] = "lime";
+            py = 0;
+        }
+
+        // background
+        ctx.fillStyle = "black";
+        ctx.fillRect(0,0,canvas.width, canvas.height);
+
+        // static blocks
+        for (row=0; row<gridHeight; row++) {
+            for (col=0; col<gridWidth; col++) {
+                ctx.fillStyle = grid[row][col];
+                ctx.fillRect(col*blockSize, row*blockSize, blockSize, blockSize);
+            }
+        }
+        // snake
+        ctx.fillStyle = "lime";
+        ctx.fillRect(px*blockSize, py*blockSize, blockSize, blockSize);
+
+    }
+
+    function keyPush(event) {
+        switch(event.keyCode) {
+            case 37:  // left
+                if (px>0) {
+                    px -= 1;
+                }
+                break;
+            case 38:  // up
+                break;
+            case 39:  // right
+                if (px < gridWidth-1) {
+                    px += 1;
+                }
+                break;
+            case 40:  // down
+                break;
+        }
+    }
+</script>
+
+</body>
+</html>
