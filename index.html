@@ -30,7 +30,7 @@
                     <tr>
 
                         <td>
-                            <canvas id="gc" width="640" height="480">
+                            <canvas id="gc" width="640" height="480" style="cursor: none">
                                 Your browser does not support the HTML 5
                             </canvas>
                         </td>
@@ -39,9 +39,9 @@
                 <table style="width:95%" class = "title" align="center">
                     <tr>
                         <!-- ammo remaining for bases -->
-                        <td id="base1_ammo">0</td>
-                        <td id="base2_ammo" style="text-align: center">0</td>
-                        <td id="base3_ammo" style="text-align: right">0</td>
+                        <td id="base1">10</td>
+                        <td id="base2" style="text-align: center">10</td>
+                        <td id="base3" style="text-align: right">10</td>
                     </tr>
                 </table>
             </td>
@@ -64,15 +64,34 @@
     var score = 0;
     var citiesLeft = 6;
     var basesLeft = 3;
+    var cityAmmo = [10,10,10];
     var gameOver = false;
+    var mousePos = [0,0];
+    var cursor = {
+        x: 0,
+        y: 0,
+        draw(ctx) {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 7, 0, 2*Math.PI);
+            ctx.moveTo(this.x, this.y-2);
+            ctx.lineTo(this.x, this.y-12);
+            ctx.moveTo(this.x, this.y+2);
+            ctx.lineTo(this.x, this.y+12);
+            ctx.moveTo(this.x-2, this.y);
+            ctx.lineTo(this.x-12, this.y);
+            ctx.moveTo(this.x+2, this.y);
+            ctx.lineTo(this.x+12, this.y);
+            ctx.stroke();
+        }
+    }
 
     window.onload=function() {
         canvas = document.getElementById("gc");
         ctx = canvas.getContext("2d");
         console.log("Starting...");
-        addBase(0.05 * SCREEN_WIDTH, 10);
-        addBase(0.5 * SCREEN_WIDTH, 10);
-        addBase(0.95 * SCREEN_WIDTH, 10);
+        addBase("base1", 0.05 * SCREEN_WIDTH, 10);
+        addBase("base2", 0.5 * SCREEN_WIDTH, 10);
+        addBase("base3", 0.95 * SCREEN_WIDTH, 10);
         addCity(0.1625 * SCREEN_WIDTH);
         addCity(0.275 * SCREEN_WIDTH);
         addCity(0.3975 * SCREEN_WIDTH);
@@ -80,6 +99,7 @@
         addCity(0.725 * SCREEN_WIDTH);
         addCity(0.8375 * SCREEN_WIDTH);
         document.addEventListener("mousedown", fire);
+        document.addEventListener("mousemove", updateCursor);
         setInterval(game, 1000/30);
     }
 
@@ -131,21 +151,56 @@
 
         // chance of a new incoming missile
         if (Math.random() < missileChance) {
-            initX = Math.random() * SCREEN_WIDTH
-            addMissile(initX, 0);
+            let initX = Math.random() * SCREEN_WIDTH;
+            let targetX = Math.random() * SCREEN_WIDTH;
+            addMissile(initX, 0, targetX, SCREEN_HEIGHT - GROUND, 1);
         }
+
+        // draw cursor last so it sits on top of everything
+        cursor.draw(ctx);
+    }
+
+    function getMousePos(mouseEvent) {
+        // not actually an event handler - just handles the coordinate conversion
+        let rect = mouseEvent.target.getBoundingClientRect();
+        return [mouseEvent.clientX - rect.left,
+                mouseEvent.clientY - rect.top];
     }
 
     function fire(mouseEvent) {
-        rect = mouseEvent.target.getBoundingClientRect();
-        addFlak(mouseEvent.clientX - rect.left,
-                mouseEvent.clientY - rect.top);
+        // sort bases in order of distance to cursor
+        let launchSites = baseList.sort(
+            function(a, b){
+                return distanceBetween(cursor, a) - distanceBetween(cursor, b)});
+        // find the nearest site with ammo left
+        let chosenSite = null;
+        siteNumber = 0;
+        while (chosenSite == null && siteNumber<launchSites.length) {
+            if (launchSites[siteNumber].ammo > 0) {
+                chosenSite = launchSites[siteNumber];
+            }
+            siteNumber++;
+        }
+        if (chosenSite != null) {
+            // decrement ammo
+            chosenSite.ammo -= 1;
+            document.getElementById(chosenSite.id).innerText = chosenSite.ammo;
+            console.log(chosenSite.ammo);
+            // launch missile from that city 
+            addMissile(chosenSite.launchX, chosenSite.launchY, cursor.x, cursor.y, 5)
+        }
     }
 
-    function addFlak(x, y) {
-        const flak = {
-            x: x,
-            y: y,
+    function updateCursor(mouseEvent) {
+        let mousePos = getMousePos(mouseEvent);
+        cursor.x = mousePos[0];
+        cursor.y = mousePos[1];
+    }
+
+    function addFlak(pos) {
+        let flak = {
+            x: pos[0],
+            y: pos[1],
             r: 1,
             phase: 0.1,
             maxSize: 50,
@@ -166,15 +221,17 @@
         flakList.push(flak);
     }
 
-    function addMissile(x, y) {
+    function addMissile(startX, startY, targetX, targetY, speed) {
         missile = {
-            startX: x,
-            startY: y,
-            x: x,
-            y: 0,
+            startX: startX,
+            startY: startY,
+            targetX: targetX,
+            targetY: targetY,
+            x: startX,
+            y: startY,
             // pick a random point on the ground and aim for that
-            vx: (Math.random() * SCREEN_WIDTH - x)/SCREEN_HEIGHT,
-            vy: 1,
+            vx: speed *(startX - targetX)/(targetY - startY),
+            vy: (targetY > startY ? speed : -speed),
             detonated: false,
             remove: false,
             draw(ctx) {
@@ -202,12 +259,12 @@
                         score += 10;
                         document.getElementById("score").innerText = score;
                         // create new explosion
-                        addFlak(this.x, this.y);
+                        addFlak([this.x, this.y]);
                     }
                 }
             },
             hit() {
-                if (this.y > SCREEN_HEIGHT - GROUND) {
+                if ((this.vy>0 && this.y>this.targetY) || (this.vy<0 && this.y<this.targetY)) {
                     return true;
                 }
                 for (let i=0; i<flakList.length; i++) {
@@ -224,18 +281,24 @@
                 return false;
             },
             inRange(target) {
-                distance = Math.sqrt(
-                Math.pow(this.x - target.x, 2) +
-                Math.pow(this.y - target.y, 2));
-                return (distance < target.r);
-
+                return (distanceBetween(this, target) < target.r);
             },
         }
         missileList.push(missile);
     }
 
-    function addBase(xPos, ammo) {
-        base = {
+    function distanceBetween(a, b) {
+        // computes straight-line dist between any two objects
+        // as long as they have .x and .y properties
+        let distance = Math.sqrt(
+                Math.pow(a.x - b.x, 2) +
+                Math.pow(a.y - b.y, 2));
+        return Math.floor(distance);
+    }
+
+    function addBase(id, xPos, ammo) {
+        let base = {
+            id: id,
             x: xPos,
             y: SCREEN_HEIGHT,
             hit: false,
@@ -244,6 +307,8 @@
             bottomWidth: 50,
             height: 30,
             r: 30,
+            launchX: xPos,  // position that missiles appear from when fired
+            launchY: SCREEN_HEIGHT - 30,
             destroyed: false,
             draw(ctx) {
                 ctx.fillStyle = "green";
@@ -260,7 +325,7 @@
     }
 
     function addCity(xPos) {
-        city = {
+        let city = {
             x: xPos,
             y: SCREEN_HEIGHT-GROUND,
             hit: false,
