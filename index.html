@@ -55,7 +55,7 @@ by L Villazon -->
     const SCREEN_HEIGHT = 480;
     const GROUND = 10;
 
-    var ctx = undefined;
+    var ctx = undefined;  // global graphics context used for all drawing
     var canvas = undefined;
 
     var flakList = [];
@@ -69,37 +69,29 @@ by L Villazon -->
     var cityAmmo = [10,10,10];
     var gameOver = false;
     var mousePos = [0,0];
-    var cursor = {
-        x: 0,
-        y: 0,
-        draw(ctx) {
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, 7, 0, 2*Math.PI);
-            ctx.moveTo(this.x, this.y-2);
-            ctx.lineTo(this.x, this.y-12);
-            ctx.moveTo(this.x, this.y+2);
-            ctx.lineTo(this.x, this.y+12);
-            ctx.moveTo(this.x-2, this.y);
-            ctx.lineTo(this.x-12, this.y);
-            ctx.moveTo(this.x+2, this.y);
-            ctx.lineTo(this.x+12, this.y);
-            ctx.stroke();
-        }
-    }
+    var cursor = undefined;
+    var level = 1;
+    var startingMissiles = 10;
+    var missilesLeft = 10;
 
     window.onload=function() {
         canvas = document.getElementById("gc");
         ctx = canvas.getContext("2d");
         console.log("Starting...");
-        addBase("base1", 0.05 * SCREEN_WIDTH, 10);
-        addBase("base2", 0.5 * SCREEN_WIDTH, 10);
-        addBase("base3", 0.95 * SCREEN_WIDTH, 10);
-        addCity(0.1625 * SCREEN_WIDTH);
-        addCity(0.275 * SCREEN_WIDTH);
-        addCity(0.3975 * SCREEN_WIDTH);
-        addCity(0.6125 * SCREEN_WIDTH);
-        addCity(0.725 * SCREEN_WIDTH);
-        addCity(0.8375 * SCREEN_WIDTH);
+        cursor = new Cursor(ctx);
+        cityList = [
+            new City(0.1625 * SCREEN_WIDTH),
+            new City(0.275 * SCREEN_WIDTH),
+            new City(0.3975 * SCREEN_WIDTH),
+            new City(0.6125 * SCREEN_WIDTH),
+            new City(0.725 * SCREEN_WIDTH),
+            new City(0.8375 * SCREEN_WIDTH),
+        ]
+        baseList = [
+            new Base("base1", 0.05 * SCREEN_WIDTH, 10),
+            new Base("base2", 0.5 * SCREEN_WIDTH, 10),
+            new Base("base3", 0.95 * SCREEN_WIDTH, 10),
+        ]
         document.addEventListener("mousedown", fire);
         document.addEventListener("mousemove", updateCursor);
         setInterval(game, 1000/30);
@@ -115,14 +107,14 @@ by L Villazon -->
         // draw missile bases
         for (let i=0; i<baseList.length; i++) {
             if (!baseList[i].destroyed) {
-                baseList[i].draw(ctx);
+                baseList[i].draw();
             }
         }
 
         // draw cities
         for (let i=0; i<cityList.length; i++) {
             //if (!cityList[i].destroyed) {
-                cityList[i].draw(ctx);
+                cityList[i].draw();
             //}
         }
 
@@ -155,7 +147,26 @@ by L Villazon -->
         if (Math.random() < missileChance) {
             let initX = Math.random() * SCREEN_WIDTH;
             let targetX = Math.random() * SCREEN_WIDTH;
-            addMissile(initX, 0, targetX, SCREEN_HEIGHT - GROUND, 1);
+            missileList.push(new Missile(initX, 0, targetX, SCREEN_HEIGHT - GROUND, 1));
+        }
+
+        // check for end-of-wave and game-over
+        if (gameOver) {
+            console.log("GAME OVER");
+            ctx.font = "50px Arial";
+            ctx.fontStyle = "bold";
+            ctx.fillStyle = "black";
+            ctx.textAlign = "center";
+            ctx.fillText("THE END", SCREEN_WIDTH/2, SCREEN_HEIGHT/2);
+        } else if (missilesLeft == 0) {
+            console.log("wave complete");
+            // clear all missiles
+            missileList = [];
+            ctx.font = "40px Arial";
+            ctx.fontStyle = "bold";
+            ctx.fillStyle = "black";
+            ctx.textAlign = "center";
+            ctx.fillText("WAVE COMPLETE", SCREEN_WIDTH/2, SCREEN_HEIGHT/3);n
         }
 
         // draw cursor last so it sits on top of everything
@@ -168,6 +179,26 @@ by L Villazon -->
         return [mouseEvent.clientX - rect.left,
                 mouseEvent.clientY - rect.top];
     }
+
+    // cursor constructor
+    function Cursor() {
+        this.x = 0;
+        this.y = 0;
+        this.draw = function() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 7, 0, 2*Math.PI);
+            ctx.moveTo(this.x, this.y-2);
+            ctx.lineTo(this.x, this.y-12);
+            ctx.moveTo(this.x, this.y+2);
+            ctx.lineTo(this.x, this.y+12);
+            ctx.moveTo(this.x-2, this.y);
+            ctx.lineTo(this.x-12, this.y);
+            ctx.moveTo(this.x+2, this.y);
+            ctx.lineTo(this.x+12, this.y);
+            ctx.stroke();
+        }
+    }
+
 
     function fire(mouseEvent) {
         // sort bases in order of distance to cursor
@@ -185,11 +216,9 @@ by L Villazon -->
         }
         if (chosenSite != null) {
             // decrement ammo
-            chosenSite.ammo -= 1;
-            document.getElementById(chosenSite.id).innerText = chosenSite.ammo;
-            console.log(chosenSite.ammo);
+            chosenSite.updateAmmo(-1);
             // launch missile from that city 
-            addMissile(chosenSite.launchX, chosenSite.launchY, cursor.x, cursor.y, 5)
+            missileList.push(new Missile(chosenSite.launchX, chosenSite.launchY, cursor.x, cursor.y, 5))
         }
     }
 
@@ -199,94 +228,103 @@ by L Villazon -->
         cursor.y = mousePos[1];
     }
 
-    function addFlak(pos) {
-        let flak = {
-            x: pos[0],
-            y: pos[1],
-            r: 1,
-            phase: 0.1,
-            maxSize: 50,
-            draw(ctx) {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.r, 0, 2*Math.PI);
-                ctx.fill();
-            },
-            update() {
-                // bursts grow and shrink according to sine function
-                this.r = Math.sin(this.phase)*this.maxSize;
-                if (this.r <0) {
-                    this.r = 0;
-                }
-                this.phase += .01;            
+    // flak constructor (flak is the airburst explosions from missiles and interceptor shots)
+    function Flak(pos) {
+        // pos is a 2-element coordinate array for the center of the flak burst
+        this.x = pos[0];
+        this.y = pos[1];
+        this.r = 1;
+        this.phase = 0.1;
+        this.maxSize = 50;
+        this.draw = function() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.r, 0, 2*Math.PI);
+            ctx.fill();
+        };
+        this.update = function() {
+            // bursts grow and shrink according to sine function
+            this.r = Math.sin(this.phase)*this.maxSize;
+            if (this.r <0) {
+                this.r = 0;
             }
-        }
-        flakList.push(flak);
+            this.phase += .02;            
+        };
     }
 
-    function addMissile(startX, startY, targetX, targetY, speed) {
-        missile = {
-            startX: startX,
-            startY: startY,
-            targetX: targetX,
-            targetY: targetY,
-            x: startX,
-            y: startY,
-            // pick a random point on the ground and aim for that
-            vx: speed *(startX - targetX)/(targetY - startY),
-            vy: (targetY > startY ? speed : -speed),
-            detonated: false,
-            remove: false,
-            draw(ctx) {
-                // draw track
-                ctx.beginPath();
-                ctx.moveTo(this.startX, this.startY);
-                ctx.lineTo(this.x, this.y);
-                ctx.stroke();
-            },
-            update() {
-                if (!this.detonated) {
-                    // move missile if it is still live
-                    this.x += this.vx;
-                    this.y += this.vy;
-                    // check for flak collisions
-                    if (this.hit()){
-                        // set flag and move to the end of the list for removal
-                        this.detonated = true;
-                        missileList.sort(function(a,b){
-                            // custom sorting so detonated missiles come before undetonated
-                            return (a.detonated === b.detonated)? 0 : a.detonated? -1: 1;
-                        });
-
-                        // increment score
-                        score += 10;
-                        document.getElementById("score").innerText = score;
-                        // create new explosion
-                        addFlak([this.x, this.y]);
+    // missile constructor
+    function Missile(startX, startY, targetX, targetY, speed) {
+        this.startX = startX;
+        this.startY = startY;
+        this.targetX = targetX;
+        this.targetY = targetY;
+        this.x = startX;
+        this.y = startY;
+        speed = (targetY > startY ? speed : -speed);
+        // pick a random point on the ground and aim for that
+        this.vx = (targetX - startX)/(targetY - startY)*speed;
+        this.vy = speed;
+        this.detonated = false;
+        this.remove = false;
+        this.draw = function(){
+            // draw track
+            ctx.beginPath();
+            ctx.moveTo(this.startX, this.startY);
+            ctx.lineTo(this.x, this.y);
+            ctx.stroke();
+        };
+        this.update = function() {
+            if (!this.detonated) {
+                // move missile if it is still live
+                this.x += this.vx;
+                this.y += this.vy;
+                // check for flak collisions
+                if (this.hit()){
+                    // if it was an incoming missile, deduct from the missiles left for this wave
+                    if (this.vy>0) {
+                        missilesLeft--;
                     }
+                    // set flag and move to the end of the list for removal
+                    this.detonated = true;
+                    missileList.sort(function(a,b){
+                        // custom sorting so detonated missiles come before undetonated
+                        return (a.detonated === b.detonated)? 0 : a.detonated? -1: 1;
+                    });
+
+                    // increment score
+                    score += 10;
+                    document.getElementById("score").innerText = score;
+                    // create new explosion
+                    flakList.push(new Flak([this.x, this.y]));
                 }
-            },
-            hit() {
-                if ((this.vy>0 && this.y>this.targetY) || (this.vy<0 && this.y<this.targetY)) {
+            }
+        };
+        this.hit = function() {
+            if ((this.vy>0 && this.y>this.targetY) || (this.vy<0 && this.y<this.targetY)) {
+                return true;
+            }
+            for (let i=0; i<flakList.length; i++) {
+                // only downward moving missiles will explode when they hit flak
+                if (!this.detonated && this.vy>0 && this.inRange(flakList[i])) {
                     return true;
                 }
-                for (let i=0; i<flakList.length; i++) {
-                    if (!this.detonated && this.inRange(flakList[i])) {
-                        return true;
-                    }
+            }
+            for (let i=0; i<cityList.length; i++) {
+                if (!this.detonated && this.inRange(cityList[i])) {
+                    cityList[i].destroy();
+                    return true;
                 }
-                for (let i=0; i<cityList.length; i++) {
-                    if (!this.detonated && this.inRange(cityList[i])) {
-                        cityList[i].destroy();
-                        return true;
-                    }
+            }
+            for (let i=0; i<baseList.length; i++) {
+                if (!this.detonated && this.inRange(baseList[i])) {
+                    baseList[i].destroy();
+                    return true;
                 }
-                return false;
-            },
-            inRange(target) {
-                return (distanceBetween(this, target) < target.r);
-            },
-        }
-        missileList.push(missile);
+            }
+            return false;
+        };
+        this.inRange = function(target) {
+            return (distanceBetween(this, target) < target.r);
+        };
     }
 
     function distanceBetween(a, b) {
@@ -298,21 +336,22 @@ by L Villazon -->
         return Math.floor(distance);
     }
 
-    function addBase(id, xPos, ammo) {
-        let base = {
-            id: id,
-            x: xPos,
-            y: SCREEN_HEIGHT,
-            hit: false,
-            ammo: ammo,
-            topWidth:20,
-            bottomWidth: 50,
-            height: 30,
-            r: 30,
-            launchX: xPos,  // position that missiles appear from when fired
-            launchY: SCREEN_HEIGHT - 30,
-            destroyed: false,
-            draw(ctx) {
+    // base constructor
+    function Base(id, xPos, ammo) {
+        this.id = id,
+        this.x = xPos,
+        this.y = SCREEN_HEIGHT,
+        this.hit = false,
+        this.ammo = ammo,
+        this.topWidth = 20,
+        this.bottomWidth = 50,
+        this.height = 30,
+        this.r = 30,
+        this.launchX = xPos,  // position that missiles appear from when fired
+        this.launchY = SCREEN_HEIGHT - 30,
+        this.destroyed = false,
+        this.draw = function() {
+            if (!this.destyroyed) {
                 ctx.fillStyle = "green";
                 ctx.beginPath();
                 ctx.moveTo(this.x - this.bottomWidth/2, this.y);
@@ -322,43 +361,50 @@ by L Villazon -->
                 ctx.closePath();
                 ctx.fill();
             }
-        }
-        baseList.push(base);
+        };
+
+        this.updateAmmo = function(change) {
+            this.ammo += change;
+            document.getElementById(this.id).innerText = this.ammo;
+        };
+
+        this.destroy = function() {
+            this.destroyed = true;
+            this.updateAmmo(-this.ammo);  // remove any remaining shots
+        };
     }
 
-    function addCity(xPos) {
-        let city = {
-            x: xPos,
-            y: SCREEN_HEIGHT-GROUND,
-            hit: false,
-            width: 50,
-            height: 30,
-            r: 30,
-            buildings: [2,5,10,4,8,3,7,6,3,6,2],
-            destroyed: false,
-            draw(ctx) {
-                ctx.fillStyle = "green";
-                for(let i=0; i<this.buildings.length; i++) {
-                    ctx.fillRect(this.x -this.width/2 +(this.width/this.buildings.length*i), 
-                                 this.y - this.height/10*this.buildings[i],
-                                 this.width/this.buildings.length,
-                                 this.height/10*this.buildings[i]
-                    );
+    // city constructor
+    function City(xPos) {
+        this.x = xPos;
+        this.y = SCREEN_HEIGHT-GROUND;
+        //this.hit = false;
+        this.width = 50;
+        this.height = 30;
+        this.r = 30;
+        this.buildings = [2,5,10,4,8,3,7,6,3,6,2]; // heights of skyscrapers in the city
+        this.destroyed = false;
+        this.draw = function() {
+            ctx.fillStyle = "green";
+            for(let i=0; i<this.buildings.length; i++) {
+                ctx.fillRect(this.x -this.width/2 +(this.width/this.buildings.length*i), 
+                                this.y - this.height/10*this.buildings[i],
+                                this.width/this.buildings.length,
+                                this.height/10*this.buildings[i]
+                );
+            }
+        };
+        this.destroy = function() {
+            if (!this.destroyed) {
+                this.destroyed = true;
+                this.buildings = [0,0,1,2,1,3,0,1,0,0,1]
+                citiesLeft -= 1;
+                document.getElementById("cities").innerText = citiesLeft;
+                if (citiesLeft == 0) {
+                    gameOver = true;
                 }
-            },
-            destroy() {
-                if (!this.destroyed) {
-                    this.destroyed = true;
-                    this.buildings = [0,0,1,2,1,3,0,1,0,0,1]
-                    citiesLeft -= 1;
-                    document.getElementById("cities").innerText = citiesLeft;
-                    if (citiesLeft == 0) {
-                        gameOver = true;
-                    }
-                }
-            },
-        }
-        cityList.push(city);
+            }
+        };
     }
 
     // don't need this, but saving for later, just in case
