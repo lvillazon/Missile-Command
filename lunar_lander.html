@@ -1,0 +1,136 @@
+<!-- JS version of a classic Golden Age arcade game
+by L Villazon -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>game</title>
+    <style>
+        .title {
+            font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+            font-size: x-large;
+            color:gold;
+        }
+
+    </style>
+</head>
+<body bgcolor="#000066">
+
+    <table align="center">
+        <tr>
+            <td>
+                <table style="width:100%" class = "title">
+                    <tr>
+                        <td>Lunar Lander
+                    </tr>
+                </table>
+                <table>
+                    <tr>
+
+                        <td>
+                            <canvas id="gc" width="640" height="480" style="cursor: none">
+                                Your browser does not support the HTML 5
+                            </canvas>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+<script>
+    const SCREEN_WIDTH = 640;
+    const SCREEN_HEIGHT = 480;
+
+    var ctx = undefined;  // global graphics context used for all drawing
+    var canvas = undefined;
+
+    // global variables
+    landscape = [];
+    let segment = 10;
+    let height = 100;
+    for (let i=0; i<SCREEN_WIDTH/segment; i++) {
+        let coord =[i*segment, height];
+        height += Math.random()*20 - 10;
+        landscape.push(coord);
+    }
+
+    window.onload=function() {
+        canvas = document.getElementById("gc");
+        ctx = canvas.getContext("2d");
+        console.log("Starting...");
+        document.addEventListener("mousedown", click);
+        //document.addEventListener("mousemove", updateCursor);
+        setInterval(game, 1000/30); // 30 frames every 1000ms, ie 30fps
+    }
+
+    function game() {
+        // background
+        ctx.fillStyle = "black";
+        ctx.fillRect(0,0,canvas.width, canvas.height);
+
+        // experiment with vector graphics styles
+        vLines(landscape);
+    }
+
+    function getMousePos(mouseEvent) {
+        // not actually an event handler - just handles the coordinate conversion
+        let rect = mouseEvent.target.getBoundingClientRect();
+        return [mouseEvent.clientX - rect.left,
+                mouseEvent.clientY - rect.top];
+    }
+
+    function click(mouseEvent) {
+        console.log(getMousePos(mouseEvent));
+    }
+
+    // basic object constructor
+    function Thing(param) {
+        this.param = param,
+        this.draw = function() {
+            let x, y = 100;
+            ctx.fillStyle = "green";
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x+10, y);
+            ctx.lineTo(x+10, y+10);
+            ctx.closePath();
+            ctx.fill();
+        };
+    }
+
+    // keyhandler for cursor keys
+    function keyPush(event) {
+        switch(event.keyCode) {
+            case 37:  // left
+                break;
+            case 38:  // up
+                break;
+            case 39:  // right
+                break;
+            case 40:  // down
+                break;
+        }
+    }
+
+    function vLines(points){
+        // draws lines between the points in the array, in the style of old vector-graphics
+        ctx.beginPath();
+        ctx.strokeStyle ="grey";
+        ctx.lineWidth = 1;
+        ctx.moveTo(points[0][0], points[0][1]);
+        for (let i=0; i<points.length; i++) {
+            ctx.lineTo(points[i][0], points[i][1]);
+        }
+        ctx.stroke();
+        ctx.fillStyle = "white";
+        for (let i=0; i<points.length; i++) {
+            ctx.fillRect(points[i][0], points[i][1], 1, 1);
+        }
+    }
+</script>
+
+</body>
+</html>
