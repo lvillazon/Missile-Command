@@ -57,6 +57,7 @@ by L Villazon -->
 
     var ctx = undefined;  // global graphics context used for all drawing
     var canvas = undefined;
+    var frameUpdate = undefined;
 
     var flakList = [];
     var missileList = [];
@@ -72,7 +73,10 @@ by L Villazon -->
     var cursor = undefined;
     var level = 1;
     var startingMissiles = 10;
-    var missilesLeft = 10;
+    var missilesLeft = 1;
+    var ammoBonus = 0;
+    var cityBonus = 0;
+    var virtualCity = undefined;
 
     window.onload=function() {
         canvas = document.getElementById("gc");
@@ -87,6 +91,8 @@ by L Villazon -->
             new City(0.725 * SCREEN_WIDTH),
             new City(0.8375 * SCREEN_WIDTH),
         ]
+        virtualCity = new City(0); // dummy city used to show wave bonus
+
         baseList = [
             new Base("base1", 0.05 * SCREEN_WIDTH, 10),
             new Base("base2", 0.5 * SCREEN_WIDTH, 10),
@@ -94,7 +100,7 @@ by L Villazon -->
         ]
         document.addEventListener("mousedown", fire);
         document.addEventListener("mousemove", updateCursor);
-        setInterval(game, 1000/30);
+        frameUpdate = setInterval(game, 1000/30);
     }
 
     function game() {
@@ -162,11 +168,12 @@ by L Villazon -->
             console.log("wave complete");
             // clear all missiles
             missileList = [];
-            ctx.font = "40px Arial";
-            ctx.fontStyle = "bold";
-            ctx.fillStyle = "black";
-            ctx.textAlign = "center";
-            ctx.fillText("WAVE COMPLETE", SCREEN_WIDTH/2, SCREEN_HEIGHT/3);
+            waveComplete();  // announce that the wave is clear
+            // wait for explosions to die down
+            if (flakList.length == 0) {
+                clearInterval(frameUpdate);
+                frameUpdate = setInterval(bonusScore, 100);  // slower animation for wave bonus
+            }
         }
 
         // draw cursor last so it sits on top of everything
@@ -226,6 +233,16 @@ by L Villazon -->
         let mousePos = getMousePos(mouseEvent);
         cursor.x = mousePos[0];
         cursor.y = mousePos[1];
+    }
+
+    function updateScore(change) {
+        score += change;
+        document.getElementById("score").innerText = score;
+    }
+
+    function updateCitiesLeft(change) {
+        citiesLeft += change;
+        document.getElementById("cities").innerText = citiesLeft;
     }
 
     // flak constructor (flak is the airburst explosions from missiles and interceptor shots)
@@ -291,8 +308,7 @@ by L Villazon -->
                     });
 
                     // increment score
-                    score += 10;
-                    document.getElementById("score").innerText = score;
+                    updateScore(10);
                     // create new explosion
                     flakList.push(new Flak([this.x, this.y]));
                 }
@@ -398,13 +414,63 @@ by L Villazon -->
             if (!this.destroyed) {
                 this.destroyed = true;
                 this.buildings = [0,0,1,2,1,3,0,1,0,0,1]
-                citiesLeft -= 1;
-                document.getElementById("cities").innerText = citiesLeft;
+                updateCitiesLeft(-1);
                 if (citiesLeft == 0) {
                     gameOver = true;
                 }
             }
         };
+    }
+
+    function waveComplete() {
+        ctx.font = "40px Arial";
+        ctx.fontStyle = "bold";
+        ctx.fillStyle = "black";
+        ctx.textAlign = "center";
+        ctx.fillText("WAVE COMPLETE", SCREEN_WIDTH/2, SCREEN_HEIGHT/3);
+    }
+
+    function bonusScore() {
+        // background
+        ctx.fillStyle = "#b3ccff";
+        ctx.fillRect(0,0,canvas.width, canvas.height);
+        ctx.fillStyle = "green";
+        ctx.fillRect(0,SCREEN_HEIGHT-GROUND, SCREEN_WIDTH, GROUND);
+        waveComplete(); // redraw message each frame
+        ctx.font = "30px Arial";
+        ctx.textAlign = "left";
+        let bonusMargin = 150;
+        ctx.fillText("10 x", bonusMargin, 200);
+        for (let i=0; i<ammoBonus; i++){
+            ctx.fillRect(bonusMargin + 70 +i*10, 180, 4, 20);
+            console.log("i");
+        }
+
+        let totalAmmo = baseList[0].ammo + baseList[1].ammo + baseList[2].ammo;
+        if (totalAmmo > 0) {
+            ammoBonus++;
+            updateScore(10);
+            // decrement base ammo
+            for (let i=0; i<baseList.length; i++) {
+                if (baseList[i].ammo >0) {
+                    baseList[i].updateAmmo(-1);
+                    break;
+                }
+            }
+        } else {
+            ctx.fillText("100 x", bonusMargin, 240);
+            for (let i=0; i<cityBonus; i++) {
+                virtualCity.x = bonusMargin + 120 + i*(virtualCity.width+5);
+                virtualCity.y = 240;
+                virtualCity.draw();
+            }
+            if (citiesLeft > 0) {
+                cityBonus++;
+                updateScore(100);
+                // decrement cities left
+                updateCitiesLeft(-1);
+            }
+        }
     }
 
     // don't need this, but saving for later, just in case
