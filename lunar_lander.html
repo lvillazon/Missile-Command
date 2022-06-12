@@ -49,18 +49,12 @@ by L Villazon -->
 
     // global variables
     landscape = [];
-    let segment = 10;
-    let height = 100;
-    for (let i=0; i<SCREEN_WIDTH/segment; i++) {
-        let coord =[i*segment, height];
-        height += Math.random()*20 - 10;
-        landscape.push(coord);
-    }
 
     window.onload=function() {
         canvas = document.getElementById("gc");
         ctx = canvas.getContext("2d");
         console.log("Starting...");
+        landscape = generateLandscape();
         document.addEventListener("mousedown", click);
         //document.addEventListener("mousemove", updateCursor);
         setInterval(game, 1000/30); // 30 frames every 1000ms, ie 30fps
@@ -119,7 +113,7 @@ by L Villazon -->
         // draws lines between the points in the array, in the style of old vector-graphics
         ctx.beginPath();
         ctx.strokeStyle ="grey";
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 2;
         ctx.moveTo(points[0][0], points[0][1]);
         for (let i=0; i<points.length; i++) {
             ctx.lineTo(points[i][0], points[i][1]);
@@ -130,6 +124,66 @@ by L Villazon -->
             ctx.fillRect(points[i][0], points[i][1], 1, 1);
         }
     }
+
+    function generateLandscape() {
+        const MAX_HEIGHT = SCREEN_HEIGHT *0.4;  // max height of the tallest mountain
+        const MIN_HEIGHT = 100;  // lowest valley
+        // start and end points of the landscape are the same, to allow wrap around scrolling
+        let y = SCREEN_HEIGHT - Math.random() * (MAX_HEIGHT - MIN_HEIGHT) - MIN_HEIGHT;
+        console.log("generating surface...");
+        let pointList = [];
+        pointList = landscapePoints(pointList, [0, y], [SCREEN_WIDTH, y], SCREEN_HEIGHT*.6);
+        // sort the points according to x coordinate
+        pointList.sort(function(a,b){return a[0]-b[0]});
+        pointList = normaliseLandscape(pointList);
+        return pointList;
+    }        
+        
+    function landscapePoints(pointList, startPoint, endPoint, deviationLimit) {
+        // returns an array of points representing lunar surface
+        // uses the midpoint displacement algorithm
+        // described at https://bitesofcode.wordpress.com/2016/12/23/landscape-generation-using-midpoint-displacement/
+
+        const DECAY = .9;  // rate at which the midpoint deviation amount is reduced
+        if (endPoint[0] - startPoint[0] < 20) { // stop recursing when x coords are close together
+            pointList.push(startPoint);
+            pointList.push(endPoint);
+        } else {
+            // calculate a new midpoint
+            let position = Math.random()*0.25 + 0.25;  // half way along the line, horizontally
+            let x = Math.floor((endPoint[0] - startPoint[0])*position) + startPoint[0];
+            let y = Math.floor((endPoint[1] - startPoint[1])*position) + startPoint[1];
+            // deviate the midpoint up or down
+            y = Math.floor(y + ((Math.random() * 2) -1) * deviationLimit);
+            if (y>SCREEN_HEIGHT) {
+                y = SCREEN_HEIGHT;
+            }
+            // add a new point at this deviated mid point
+            pointList.push([x,y]);
+            deviationLimit = deviationLimit * 1/(2**DECAY);
+            landscapePoints(pointList, startPoint, [x,y], deviationLimit);
+            landscapePoints(pointList, [x,y], endPoint, deviationLimit);
+        }
+        return pointList;
+    }
+
+    function normaliseLandscape(pointList) {
+        // moves all points down, so the lowest point is at the bottom of the screen
+        // this is complicated slightly by the fact that y coords INCREASE as you go down the screen
+        // so SCREEN_HEIGHT is the lowest point
+        let lowest = 0;
+        for (i = 0; i<pointList.length; i++) {
+            if (pointList[i][1] > lowest) {
+                lowest = pointList[i][1];
+            }
+        }
+
+        for (i = 0; i<pointList.length; i++) {
+            pointList[i][1] += (SCREEN_HEIGHT - lowest);
+        }
+        return pointList;
+    }
+
 </script>
 
 </body>
