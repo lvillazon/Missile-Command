@@ -43,6 +43,7 @@ by L Villazon -->
 <script>
     const SCREEN_WIDTH = 640;
     const SCREEN_HEIGHT = 480;
+    const BOTTOM_MARGIN = 30;
 
     var ctx = undefined;  // global graphics context used for all drawing
     var canvas = undefined;
@@ -65,8 +66,19 @@ by L Villazon -->
         ctx.fillStyle = "black";
         ctx.fillRect(0,0,canvas.width, canvas.height);
 
-        // experiment with vector graphics styles
+        // draw landscape using vector graphics style
         vLines(landscape);
+        // draw landing sites brighter
+        for (let i=landscape.length-1; i>0; i--) {
+            if (landscape[i].length>2) {
+                ctx.beginPath();
+                ctx.strokeStyle = "#CCCCCC"; //nearly white;
+                ctx.lineWidth = 2;
+                ctx.moveTo(landscape[i][0], landscape[i][1]);
+                ctx.lineTo(landscape[i-1][0], landscape[i-1][1]);
+                ctx.stroke();
+            }
+        }
     }
 
     function getMousePos(mouseEvent) {
@@ -115,7 +127,7 @@ by L Villazon -->
         ctx.strokeStyle ="grey";
         ctx.lineWidth = 2;
         ctx.moveTo(points[0][0], points[0][1]);
-        for (let i=0; i<points.length; i++) {
+        for (let i=1; i<points.length; i++) {
             ctx.lineTo(points[i][0], points[i][1]);
         }
         ctx.stroke();
@@ -129,13 +141,17 @@ by L Villazon -->
         const MAX_HEIGHT = SCREEN_HEIGHT *0.4;  // max height of the tallest mountain
         const MIN_HEIGHT = 100;  // lowest valley
         // start and end points of the landscape are the same, to allow wrap around scrolling
-        let y = SCREEN_HEIGHT - Math.random() * (MAX_HEIGHT - MIN_HEIGHT) - MIN_HEIGHT;
+        let y = Math.floor(SCREEN_HEIGHT - Math.random() * (MAX_HEIGHT - MIN_HEIGHT) - MIN_HEIGHT);
         console.log("generating surface...");
         let pointList = [];
         pointList = landscapePoints(pointList, [0, y], [SCREEN_WIDTH, y], SCREEN_HEIGHT*.6);
         // sort the points according to x coordinate
-        pointList.sort(function(a,b){return a[0]-b[0]});
+        pointsList = sortByX(pointList);
+        // move the landscape down, so the lowest point is at the bootom of the screen
         pointList = normaliseLandscape(pointList);
+        // add a landing site
+        pointList = addLandingSite(pointList, 50);
+        pointList = addLandingSite(pointList, 20);
         return pointList;
     }        
         
@@ -167,8 +183,14 @@ by L Villazon -->
         return pointList;
     }
 
+    function sortByX(pointList) {
+        // return list sorted in ascending order of x coord
+        return pointList.sort(function(a,b){return a[0]-b[0]});
+    }
+
     function normaliseLandscape(pointList) {
         // moves all points down, so the lowest point is at the bottom of the screen
+        // (leaving some space for the score multiplier label)
         // this is complicated slightly by the fact that y coords INCREASE as you go down the screen
         // so SCREEN_HEIGHT is the lowest point
         let lowest = 0;
@@ -179,7 +201,47 @@ by L Villazon -->
         }
 
         for (i = 0; i<pointList.length; i++) {
-            pointList[i][1] += (SCREEN_HEIGHT - lowest);
+            pointList[i][1] += (SCREEN_HEIGHT - lowest - BOTTOM_MARGIN);
+        }
+        return pointList;
+    }
+
+    function chooseLandingSites(pointList, width) {
+        // picks a random point along the landscape
+        // and creates a landing site object
+        let i = Math.floor(Math.random() * pointList.length);
+        // add a horizontal line segment starting from this point
+        let x = pointList[i][0];
+        let y = pointList[i][1];
+
+    }
+
+    function addLandingSite(pointList, width){
+        // pick a random point along the list of terrain points
+        let x = 9999;
+        let y = 0;
+        let i = 0;
+        while (x + width > SCREEN_WIDTH) {
+            i = Math.floor(Math.random() * pointList.length);
+            x = pointList[i][0];
+            y = pointList[i][1];
+        }
+        console.log("LZ chosen at", x, y)
+
+        // add a horizontal line segment starting from this point
+        pointList.push([x+width, y, 2]); // 3rd term is the score multiplier TODO: have variable values
+        // remove any points that are overlapped by the landing site
+        i = (i + 1) % pointList.length; // start with the next point (wrapping around at the right)
+        let pointsToDelete = 0;
+        while (pointList[i][0] <= x+width) {
+            pointList[i][0] = 99999; // move this point to the end of the array when sorted by x coord
+            pointsToDelete++;
+            i = (i + 1) % pointList.length;
+        }
+        pointList = sortByX(pointList);
+        // remove elements flagged earlier
+        for (i=0; i<pointsToDelete; i++) {
+            pointsList.pop();
         }
         return pointList;
     }
